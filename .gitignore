@@ -1,0 +1,147 @@
+# Team Management Platform - Git Ignore
+
+# =============================================================================
+# Operating System
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# IDEs and Editors
+# =============================================================================
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.project
+.classpath
+.settings/
+nbproject/
+
+# =============================================================================
+# Environment Files
+# =============================================================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# =============================================================================
+# Docker
+# =============================================================================
+docker-compose.override.yml
+
+# =============================================================================
+# Backend (Laravel)
+# =============================================================================
+backend/vendor/
+backend/node_modules/
+backend/.env
+backend/.env.backup
+backend/storage/*.key
+backend/storage/app/
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+!backend/storage/framework/cache/.gitkeep
+!backend/storage/framework/sessions/.gitkeep
+!backend/storage/framework/views/.gitkeep
+!backend/storage/logs/.gitkeep
+backend/bootstrap/cache/*
+!backend/bootstrap/cache/.gitkeep
+backend/public/hot
+backend/public/storage
+backend/.phpunit.result.cache
+backend/coverage/
+backend/.php-cs-fixer.cache
+
+# =============================================================================
+# Frontend (React/Vite)
+# =============================================================================
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/coverage/
+frontend/.vite/
+frontend/*.local
+
+# =============================================================================
+# AI Service (Python)
+# =============================================================================
+ai-service/__pycache__/
+ai-service/*.py[cod]
+ai-service/*$py.class
+ai-service/*.so
+ai-service/.Python
+ai-service/build/
+ai-service/develop-eggs/
+ai-service/dist/
+ai-service/downloads/
+ai-service/eggs/
+ai-service/.eggs/
+ai-service/lib/
+ai-service/lib64/
+ai-service/parts/
+ai-service/sdist/
+ai-service/var/
+ai-service/wheels/
+ai-service/*.egg-info/
+ai-service/.installed.cfg
+ai-service/*.egg
+ai-service/venv/
+ai-service/.venv/
+ai-service/ENV/
+ai-service/.env
+ai-service/.pytest_cache/
+ai-service/.coverage
+ai-service/htmlcov/
+ai-service/.mypy_cache/
+ai-service/.ruff_cache/
+ai-service/models/*.bin
+ai-service/models/*.pkl
+!ai-service/models/.gitkeep
+
+# =============================================================================
+# Logs
+# =============================================================================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =============================================================================
+# Testing
+# =============================================================================
+.coverage
+coverage/
+.nyc_output/
+*.lcov
+.phpunit.result.cache
+
+# =============================================================================
+# Build Artifacts
+# =============================================================================
+*.compiled
+*.min.js
+*.min.css
+
+# =============================================================================
+# Misc
+# =============================================================================
+.speckit/
+.specify/memory/*.tmp
+*.bak
+*.tmp
+*.temp

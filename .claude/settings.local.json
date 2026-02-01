@@ -4,7 +4,12 @@
       "Bash(git fetch:*)",
       "Bash(pwsh:*)",
       "Bash(powershell -File:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git checkout:*)",
+      "Bash(powershell -Command \"$env:SPECIFY_FEATURE=''001-dual-reporting''; & ''.specify/scripts/powershell/check-prerequisites.ps1'' -Json\")",
+      "Bash(powershell -Command \"$env:SPECIFY_FEATURE = ''001-dual-reporting''; .specify/scripts/powershell/check-prerequisites.ps1 -Json\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }

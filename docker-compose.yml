@@ -1,0 +1,230 @@
+# Team Management Platform - Docker Compose Configuration
+# Orchestrates Laravel backend, React frontend, FastAPI AI service, and supporting infrastructure
+
+services:
+  # ===========================================
+  # REVERSE PROXY
+  # ===========================================
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: tmp-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend/public:/var/www/html/public:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # BACKEND (Laravel 11 + PHP 8.2 FPM)
+  # ===========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tmp-backend
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-http://localhost}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-team_mgmt}
+      - DB_USERNAME=${DB_USERNAME:-app}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_BUCKET=${MINIO_BUCKET:-reports}
+      - AWS_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - AWS_USE_PATH_STYLE_ENDPOINT=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # FRONTEND (React + Vite Dev Server)
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tmp-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost/api}
+      - VITE_WS_URL=${VITE_WS_URL:-ws://localhost/ws}
+      # Enable polling for HMR on Windows/Linux
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # AI/ML SERVICE (Python FastAPI)
+  # ===========================================
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: tmp-ai-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://${DB_USERNAME:-app}:${DB_PASSWORD:-secret}@postgres:5432/${DB_DATABASE:-team_mgmt}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MODEL_STORAGE_PATH=/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # DATABASES & CACHING
+  # ===========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: tmp-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${DB_DATABASE:-team_mgmt}
+      - POSTGRES_USER=${DB_USERNAME:-app}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secret}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-app} -d ${DB_DATABASE:-team_mgmt}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tmp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # SEARCH
+  # ===========================================
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: tmp-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_ENV=${MEILI_ENV:-development}
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-masterKey}
+    volumes:
+      - meilisearch_data:/meili_data
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # FILE STORAGE (S3-Compatible)
+  # ===========================================
+  minio:
+    image: minio/minio:latest
+    container_name: tmp-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+  # ===========================================
+  # EMAIL TESTING (Dev Only)
+  # ===========================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: tmp-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - tmp-network
+    restart: unless-stopped
+
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  tmp-network:
+    driver: bridge
+
+# ===========================================
+# VOLUMES (Named for persistence)
+# ===========================================
+volumes:
+  pg_data:
+    name: tmp_pg_data
+  redis_data:
+    name: tmp_redis_data
+  meilisearch_data:
+    name: tmp_meilisearch_data
+  minio_data:
+    name: tmp_minio_data
