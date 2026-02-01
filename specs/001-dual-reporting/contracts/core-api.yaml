@@ -1,0 +1,485 @@
+openapi: 3.0.3
+info:
+  title: Core API Service
+  description: |
+    Authentication, authorization, user management, and audit logging.
+    Implements Constitution Principle I (Zero Trust Architecture).
+  version: 1.0.0
+  contact:
+    name: Team Management Platform
+
+servers:
+  - url: /api/v1
+    description: Core API
+
+tags:
+  - name: Authentication
+    description: Login, logout, session management
+  - name: Users
+    description: User CRUD operations
+  - name: Roles
+    description: Role and permission management
+  - name: Audit
+    description: Audit log access (CEO/CFO only)
+
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      operationId: logout
+      security:
+        - sanctum: []
+      responses:
+        '204':
+          description: Logged out successfully
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      operationId: listUsers
+      security:
+        - sanctum: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [ceo, cfo, gm, ops_manager, director, sdd, dept_manager, worker]
+        - name: department_id
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+        '403':
+          description: Insufficient permissions
+
+    post:
+      tags: [Users]
+      summary: Create user
+      operationId: createUser
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Only admins can create users
+        '422':
+          description: Validation error
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      operationId: getUser
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+    patch:
+      tags: [Users]
+      summary: Update user
+      operationId: updateUser
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Cannot update this user
+        '422':
+          description: Validation error
+
+    delete:
+      tags: [Users]
+      summary: Soft delete user
+      operationId: deleteUser
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: User deleted
+        '403':
+          description: Cannot delete this user
+
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List all roles
+      operationId: listRoles
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: Role list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+
+  /users/{id}/role:
+    put:
+      tags: [Roles]
+      summary: Assign role to user
+      operationId: assignRole
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [ceo, cfo, gm, ops_manager, director, sdd, dept_manager, worker]
+      responses:
+        '200':
+          description: Role assigned
+        '403':
+          description: Only admins can assign roles
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: List audit logs
+      description: |
+        **Restricted to CEO and CFO only.**
+        Returns immutable audit trail entries.
+      operationId: listAuditLogs
+      security:
+        - sanctum: []
+      parameters:
+        - name: auditable_type
+          in: query
+          schema:
+            type: string
+          description: Filter by model type (e.g., ProjectReport)
+        - name: auditable_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by specific record ID
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by actor
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [created, updated, amended, accessed]
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+        '403':
+          description: Only CEO/CFO can access audit logs
+
+components:
+  securitySchemes:
+    sanctum:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: Optional token for non-SPA clients
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        employee_id:
+          type: string
+        role:
+          type: string
+          enum: [ceo, cfo, gm, ops_manager, director, sdd, dept_manager, worker]
+        department:
+          $ref: '#/components/schemas/Department'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    CreateUserRequest:
+      type: object
+      required: [email, password, name, role]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+        employee_id:
+          type: string
+        role:
+          type: string
+          enum: [ceo, cfo, gm, ops_manager, director, sdd, dept_manager, worker]
+        department_id:
+          type: integer
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        employee_id:
+          type: string
+        department_id:
+          type: integer
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        auditable_type:
+          type: string
+        auditable_id:
+          type: integer
+        action:
+          type: string
+        user_id:
+          type: integer
+        user_role:
+          type: string
+        old_values:
+          type: object
+        new_values:
+          type: object
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AuditLogList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        last_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string

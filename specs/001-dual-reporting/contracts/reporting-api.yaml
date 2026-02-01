@@ -1,0 +1,1023 @@
+openapi: 3.0.3
+info:
+  title: Reporting API Service
+  description: |
+    Manages Source A (Project Reports) and Source B (Department Reports).
+    Implements Constitution Principles II (Data Integrity) and III (Dual-Reporting Core).
+
+    **Critical RBAC Rules:**
+    - SDDs can ONLY access Source A endpoints
+    - Department Managers can ONLY access Source B endpoints
+    - CEO/CFO/GM/Ops Manager can access both
+    - No cross-contamination between Source A and Source B
+  version: 1.0.0
+
+servers:
+  - url: /api/v1/reporting
+    description: Reporting Service
+
+tags:
+  - name: Project Reports (Source A)
+    description: Project-based reports submitted by SDDs
+  - name: Department Reports (Source B)
+    description: Department-based reports submitted by Dept Managers
+  - name: Conflict Alerts
+    description: Discrepancy alerts between Source A and Source B
+
+paths:
+  # ========================================
+  # SOURCE A: Project Reports (SDD only)
+  # ========================================
+
+  /project-reports:
+    get:
+      tags: [Project Reports (Source A)]
+      summary: List project reports
+      description: |
+        **Access:** SDD sees only their projects; Directors see their SDDs' reports;
+        CEO/CFO/GM see all.
+      operationId: listProjectReports
+      security:
+        - sanctum: []
+      parameters:
+        - name: project_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, amended]
+        - name: period_start
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: period_end
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Project report list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReportList'
+        '403':
+          description: Department Managers cannot access Source A
+
+    post:
+      tags: [Project Reports (Source A)]
+      summary: Create project report
+      description: |
+        **Access:** SDDs only. Creates a draft report for a specific project and period.
+      operationId: createProjectReport
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectReportRequest'
+      responses:
+        '201':
+          description: Report created (draft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReport'
+        '403':
+          description: Only SDDs can create project reports
+        '409':
+          description: Report already exists for this project/period
+        '422':
+          description: Validation error
+
+  /project-reports/{id}:
+    get:
+      tags: [Project Reports (Source A)]
+      summary: Get project report details
+      operationId: getProjectReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report details with entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReportDetailed'
+        '403':
+          description: No access to this report
+        '404':
+          description: Report not found
+
+    patch:
+      tags: [Project Reports (Source A)]
+      summary: Update draft project report
+      description: |
+        **Only draft reports can be updated.** Submitted reports require amendment.
+      operationId: updateProjectReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectReportRequest'
+      responses:
+        '200':
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReport'
+        '403':
+          description: Cannot update submitted reports
+        '422':
+          description: Validation error
+
+  /project-reports/{id}/submit:
+    post:
+      tags: [Project Reports (Source A)]
+      summary: Submit project report
+      description: |
+        Locks the report. Cannot be deleted after submission (Constitution Principle II).
+      operationId: submitProjectReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReport'
+        '400':
+          description: Report already submitted
+        '422':
+          description: Report incomplete (missing required entries)
+
+  /project-reports/{id}/amend:
+    post:
+      tags: [Project Reports (Source A)]
+      summary: Amend submitted project report
+      description: |
+        Creates an amendment record. Original values are preserved in audit log.
+      operationId: amendProjectReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AmendReportRequest'
+      responses:
+        '200':
+          description: Amendment recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReport'
+        '400':
+          description: Report not submitted yet
+        '422':
+          description: Amendment reason required
+
+  /project-reports/{id}/entries:
+    get:
+      tags: [Project Reports (Source A)]
+      summary: List report entries
+      operationId: listProjectReportEntries
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectReportEntry'
+
+    post:
+      tags: [Project Reports (Source A)]
+      summary: Add entry to report
+      operationId: addProjectReportEntry
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectReportEntryRequest'
+      responses:
+        '201':
+          description: Entry added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReportEntry'
+        '400':
+          description: Cannot add entries to submitted report
+        '422':
+          description: Validation error
+
+  /project-reports/{reportId}/entries/{entryId}:
+    patch:
+      tags: [Project Reports (Source A)]
+      summary: Update report entry
+      operationId: updateProjectReportEntry
+      security:
+        - sanctum: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectReportEntryRequest'
+      responses:
+        '200':
+          description: Entry updated
+        '400':
+          description: Cannot modify submitted report entries
+
+    delete:
+      tags: [Project Reports (Source A)]
+      summary: Remove entry from draft report
+      operationId: deleteProjectReportEntry
+      security:
+        - sanctum: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Entry removed
+        '400':
+          description: Cannot remove entries from submitted report
+
+  # ========================================
+  # SOURCE B: Department Reports (Dept Mgr)
+  # ========================================
+
+  /department-reports:
+    get:
+      tags: [Department Reports (Source B)]
+      summary: List department reports
+      description: |
+        **Access:** Dept Managers see only their department; CEO/CFO/GM see all.
+        SDDs CANNOT access this endpoint.
+      operationId: listDepartmentReports
+      security:
+        - sanctum: []
+      parameters:
+        - name: department_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, amended]
+        - name: period_start
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: period_end
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Department report list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentReportList'
+        '403':
+          description: SDDs cannot access Source B
+
+    post:
+      tags: [Department Reports (Source B)]
+      summary: Create department report
+      description: |
+        **Access:** Department Managers only.
+      operationId: createDepartmentReport
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentReportRequest'
+      responses:
+        '201':
+          description: Report created (draft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentReport'
+        '403':
+          description: Only Dept Managers can create department reports
+        '409':
+          description: Report already exists for this department/period
+
+  /department-reports/{id}:
+    get:
+      tags: [Department Reports (Source B)]
+      summary: Get department report details
+      operationId: getDepartmentReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report details with entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentReportDetailed'
+        '403':
+          description: SDDs cannot access Source B
+        '404':
+          description: Report not found
+
+    patch:
+      tags: [Department Reports (Source B)]
+      summary: Update draft department report
+      operationId: updateDepartmentReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDepartmentReportRequest'
+      responses:
+        '200':
+          description: Report updated
+        '403':
+          description: Cannot update submitted reports
+
+  /department-reports/{id}/submit:
+    post:
+      tags: [Department Reports (Source B)]
+      summary: Submit department report
+      operationId: submitDepartmentReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentReport'
+
+  /department-reports/{id}/amend:
+    post:
+      tags: [Department Reports (Source B)]
+      summary: Amend submitted department report
+      operationId: amendDepartmentReport
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AmendReportRequest'
+      responses:
+        '200':
+          description: Amendment recorded
+
+  /department-reports/{id}/entries:
+    get:
+      tags: [Department Reports (Source B)]
+      summary: List department report entries
+      operationId: listDepartmentReportEntries
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepartmentReportEntry'
+
+    post:
+      tags: [Department Reports (Source B)]
+      summary: Add entry to department report
+      operationId: addDepartmentReportEntry
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentReportEntryRequest'
+      responses:
+        '201':
+          description: Entry added
+
+  # ========================================
+  # CONFLICT ALERTS
+  # ========================================
+
+  /conflict-alerts:
+    get:
+      tags: [Conflict Alerts]
+      summary: List conflict alerts
+      description: |
+        **Access:** GM sees open alerts; CEO/CFO see all (including escalated).
+        SDDs and Dept Managers CANNOT access.
+      operationId: listConflictAlerts
+      security:
+        - sanctum: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, resolved, escalated]
+        - name: employee_id
+          in: query
+          schema:
+            type: integer
+        - name: period_start
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Conflict alert list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictAlertList'
+        '403':
+          description: Insufficient permissions
+
+  /conflict-alerts/{id}:
+    get:
+      tags: [Conflict Alerts]
+      summary: Get conflict alert details
+      description: |
+        Returns full comparison data: Source A hours, Source B hours, discrepancy.
+      operationId: getConflictAlert
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Alert details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictAlertDetailed'
+
+  /conflict-alerts/{id}/resolve:
+    post:
+      tags: [Conflict Alerts]
+      summary: Resolve conflict alert
+      description: |
+        **Access:** CEO, CFO, or GM only. Resolution notes required.
+      operationId: resolveConflictAlert
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution_notes]
+              properties:
+                resolution_notes:
+                  type: string
+                  minLength: 10
+                  description: Explanation of how the conflict was resolved
+      responses:
+        '200':
+          description: Alert resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictAlert'
+        '400':
+          description: Alert already resolved
+        '422':
+          description: Resolution notes too short
+
+components:
+  securitySchemes:
+    sanctum:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+
+  schemas:
+    # Source A Schemas
+    ProjectReport:
+      type: object
+      properties:
+        id:
+          type: integer
+        project_id:
+          type: integer
+        project_name:
+          type: string
+        submitted_by:
+          type: integer
+        submitter_name:
+          type: string
+        reporting_period_start:
+          type: string
+          format: date
+        reporting_period_end:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, submitted, amended]
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ProjectReportDetailed:
+      allOf:
+        - $ref: '#/components/schemas/ProjectReport'
+        - type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProjectReportEntry'
+            amendments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Amendment'
+
+    ProjectReportEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_id:
+          type: integer
+        employee_name:
+          type: string
+        hours_worked:
+          type: number
+          format: float
+        tasks_completed:
+          type: integer
+        status:
+          type: string
+          enum: [on_track, at_risk, blocked]
+        accomplishments:
+          type: string
+
+    ProjectReportList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectReport'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    CreateProjectReportRequest:
+      type: object
+      required: [project_id, reporting_period_start, reporting_period_end]
+      properties:
+        project_id:
+          type: integer
+        reporting_period_start:
+          type: string
+          format: date
+        reporting_period_end:
+          type: string
+          format: date
+
+    UpdateProjectReportRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateProjectReportEntryRequest'
+
+    CreateProjectReportEntryRequest:
+      type: object
+      required: [employee_id, hours_worked]
+      properties:
+        employee_id:
+          type: integer
+        hours_worked:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 168
+        tasks_completed:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [on_track, at_risk, blocked]
+        accomplishments:
+          type: string
+
+    UpdateProjectReportEntryRequest:
+      type: object
+      properties:
+        hours_worked:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 168
+        tasks_completed:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [on_track, at_risk, blocked]
+        accomplishments:
+          type: string
+
+    # Source B Schemas
+    DepartmentReport:
+      type: object
+      properties:
+        id:
+          type: integer
+        department_id:
+          type: integer
+        department_name:
+          type: string
+        submitted_by:
+          type: integer
+        submitter_name:
+          type: string
+        reporting_period_start:
+          type: string
+          format: date
+        reporting_period_end:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, submitted, amended]
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    DepartmentReportDetailed:
+      allOf:
+        - $ref: '#/components/schemas/DepartmentReport'
+        - type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: '#/components/schemas/DepartmentReportEntry'
+            amendments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Amendment'
+
+    DepartmentReportEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_id:
+          type: integer
+        employee_name:
+          type: string
+        hours_worked:
+          type: number
+          format: float
+        tasks_completed:
+          type: integer
+        status:
+          type: string
+          enum: [productive, underperforming, on_leave]
+        work_description:
+          type: string
+
+    DepartmentReportList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DepartmentReport'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    CreateDepartmentReportRequest:
+      type: object
+      required: [department_id, reporting_period_start, reporting_period_end]
+      properties:
+        department_id:
+          type: integer
+        reporting_period_start:
+          type: string
+          format: date
+        reporting_period_end:
+          type: string
+          format: date
+
+    UpdateDepartmentReportRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateDepartmentReportEntryRequest'
+
+    CreateDepartmentReportEntryRequest:
+      type: object
+      required: [employee_id, hours_worked]
+      properties:
+        employee_id:
+          type: integer
+        hours_worked:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 168
+        tasks_completed:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [productive, underperforming, on_leave]
+        work_description:
+          type: string
+
+    # Amendment
+    AmendReportRequest:
+      type: object
+      required: [amendment_reason, changes]
+      properties:
+        amendment_reason:
+          type: string
+          minLength: 10
+        changes:
+          type: object
+          description: Fields to update in the report
+
+    Amendment:
+      type: object
+      properties:
+        id:
+          type: integer
+        amended_by:
+          type: integer
+        amender_name:
+          type: string
+        amendment_reason:
+          type: string
+        changes:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    # Conflict Alerts
+    ConflictAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_id:
+          type: integer
+        employee_name:
+          type: string
+        reporting_period_start:
+          type: string
+          format: date
+        reporting_period_end:
+          type: string
+          format: date
+        source_a_hours:
+          type: number
+          format: float
+        source_b_hours:
+          type: number
+          format: float
+        discrepancy:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [open, resolved, escalated]
+        resolved_by:
+          type: integer
+          nullable: true
+        resolution_notes:
+          type: string
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        escalated_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ConflictAlertDetailed:
+      allOf:
+        - $ref: '#/components/schemas/ConflictAlert'
+        - type: object
+          properties:
+            source_a_details:
+              type: array
+              description: Project report entries for this employee
+              items:
+                type: object
+                properties:
+                  project_name:
+                    type: string
+                  hours_worked:
+                    type: number
+            source_b_details:
+              type: object
+              description: Department report entry for this employee
+              properties:
+                department_name:
+                  type: string
+                hours_worked:
+                  type: number
+
+    ConflictAlertList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConflictAlert'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        last_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer

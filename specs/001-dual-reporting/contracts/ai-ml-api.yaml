@@ -1,0 +1,684 @@
+openapi: 3.0.3
+info:
+  title: AI/ML Service API
+  description: |
+    Python FastAPI service for predictive analytics and machine learning models.
+    Consumed by Laravel Analytics service for CEO/CFO dashboards.
+
+    **Internal Service** - Not exposed to frontend directly.
+  version: 1.0.0
+
+servers:
+  - url: http://ai-ml:8000/api/v1
+    description: Internal AI/ML Service
+
+tags:
+  - name: Predictions
+    description: ML-based predictions
+  - name: Analytics
+    description: Aggregation and trend analysis
+  - name: Health
+    description: Service health checks
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  models_loaded:
+                    type: array
+                    items:
+                      type: string
+                  version:
+                    type: string
+
+  # ========================================
+  # PREDICTIONS
+  # ========================================
+
+  /predictions/attrition:
+    post:
+      tags: [Predictions]
+      summary: Predict employee attrition risk
+      description: |
+        Returns attrition probability for each employee based on:
+        - Missed reports
+        - Performance trends
+        - Tenure
+        - Conflict involvement
+      operationId: predictAttrition
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttritionPredictionRequest'
+      responses:
+        '200':
+          description: Attrition predictions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttritionPredictionResponse'
+        '422':
+          description: Invalid input data
+
+  /predictions/attrition/batch:
+    post:
+      tags: [Predictions]
+      summary: Batch attrition prediction for all employees
+      description: |
+        Processes all active employees and returns ranked attrition risks.
+        Called by weekly scheduled job.
+      operationId: batchPredictAttrition
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employees]
+              properties:
+                employees:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/EmployeeFeatures'
+      responses:
+        '200':
+          description: Batch predictions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  predictions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AttritionPrediction'
+                  model_version:
+                    type: string
+                  processed_at:
+                    type: string
+                    format: date-time
+
+  /predictions/churn:
+    post:
+      tags: [Predictions]
+      summary: Predict client churn risk
+      description: |
+        Returns churn probability for clients based on:
+        - Contract remaining time
+        - Revenue trends
+        - Interaction frequency
+        - Project delivery performance
+      operationId: predictChurn
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChurnPredictionRequest'
+      responses:
+        '200':
+          description: Churn predictions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChurnPredictionResponse'
+
+  /predictions/churn/batch:
+    post:
+      tags: [Predictions]
+      summary: Batch churn prediction for all clients
+      operationId: batchPredictChurn
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clients]
+              properties:
+                clients:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ClientFeatures'
+      responses:
+        '200':
+          description: Batch churn predictions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  predictions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChurnPrediction'
+
+  /predictions/project-success:
+    post:
+      tags: [Predictions]
+      summary: Predict project success probability
+      description: |
+        Predicts likelihood of project completing on-time and on-budget.
+      operationId: predictProjectSuccess
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectSuccessRequest'
+      responses:
+        '200':
+          description: Project success prediction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSuccessPrediction'
+
+  /predictions/revenue-forecast:
+    post:
+      tags: [Predictions]
+      summary: Forecast revenue for upcoming periods
+      operationId: forecastRevenue
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [historical_data, forecast_months]
+              properties:
+                historical_data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      month:
+                        type: string
+                        format: date
+                      revenue:
+                        type: number
+                forecast_months:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+      responses:
+        '200':
+          description: Revenue forecast
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueForecast'
+
+  # ========================================
+  # ANALYTICS
+  # ========================================
+
+  /analytics/anomalies:
+    post:
+      tags: [Analytics]
+      summary: Detect anomalies in report data
+      description: |
+        Identifies unusual patterns in submitted reports:
+        - Sudden hour changes
+        - Unusual work patterns
+        - Suspicious amendment patterns
+      operationId: detectAnomalies
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data_type, data]
+              properties:
+                data_type:
+                  type: string
+                  enum: [project_reports, department_reports, hours]
+                data:
+                  type: array
+                  items:
+                    type: object
+                sensitivity:
+                  type: number
+                  default: 0.95
+                  description: Anomaly detection threshold (0-1)
+      responses:
+        '200':
+          description: Detected anomalies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnomalyDetectionResult'
+
+  /analytics/trends:
+    post:
+      tags: [Analytics]
+      summary: Analyze trends in time series data
+      operationId: analyzeTrends
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metric_name, data_points]
+              properties:
+                metric_name:
+                  type: string
+                data_points:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      value:
+                        type: number
+      responses:
+        '200':
+          description: Trend analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendAnalysis'
+
+  /analytics/recommendations/task-assignment:
+    post:
+      tags: [Analytics]
+      summary: Recommend optimal task assignments
+      description: |
+        Suggests best employee-task matches based on skills, availability, and history.
+      operationId: recommendTaskAssignment
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task, available_employees]
+              properties:
+                task:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    required_skills:
+                      type: array
+                      items:
+                        type: string
+                    estimated_hours:
+                      type: number
+                    priority:
+                      type: string
+                available_employees:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      skills:
+                        type: array
+                        items:
+                          type: string
+                      current_workload_hours:
+                        type: number
+                      past_performance_score:
+                        type: number
+      responses:
+        '200':
+          description: Assignment recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employee_id:
+                          type: integer
+                        match_score:
+                          type: number
+                        reasoning:
+                          type: array
+                          items:
+                            type: string
+
+  /analytics/time-estimation:
+    post:
+      tags: [Analytics]
+      summary: Estimate time for task completion
+      operationId: estimateTaskTime
+      security:
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_description, historical_tasks]
+              properties:
+                task_description:
+                  type: string
+                task_type:
+                  type: string
+                historical_tasks:
+                  type: array
+                  description: Similar completed tasks for reference
+                  items:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      actual_hours:
+                        type: number
+      responses:
+        '200':
+          description: Time estimation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estimated_hours:
+                    type: number
+                  confidence:
+                    type: number
+                  range:
+                    type: object
+                    properties:
+                      min:
+                        type: number
+                      max:
+                        type: number
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: Internal service JWT token
+
+  schemas:
+    EmployeeFeatures:
+      type: object
+      required: [employee_id]
+      properties:
+        employee_id:
+          type: integer
+        tenure_months:
+          type: integer
+        missed_reports_30d:
+          type: integer
+        conflict_flags_count:
+          type: integer
+        performance_trend:
+          type: string
+          enum: [improving, stable, declining]
+        hours_variance:
+          type: number
+          description: Std deviation of reported hours
+        department:
+          type: string
+        role:
+          type: string
+
+    AttritionPredictionRequest:
+      type: object
+      required: [employee]
+      properties:
+        employee:
+          $ref: '#/components/schemas/EmployeeFeatures'
+
+    AttritionPrediction:
+      type: object
+      properties:
+        employee_id:
+          type: integer
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_level:
+          type: string
+          enum: [low, medium, high, critical]
+        contributing_factors:
+          type: array
+          items:
+            type: object
+            properties:
+              factor:
+                type: string
+              weight:
+                type: number
+              description:
+                type: string
+
+    AttritionPredictionResponse:
+      type: object
+      properties:
+        prediction:
+          $ref: '#/components/schemas/AttritionPrediction'
+        model_version:
+          type: string
+        confidence_interval:
+          type: object
+          properties:
+            lower:
+              type: number
+            upper:
+              type: number
+
+    ClientFeatures:
+      type: object
+      required: [client_id]
+      properties:
+        client_id:
+          type: integer
+        contract_months_remaining:
+          type: integer
+        monthly_revenue:
+          type: number
+        revenue_trend:
+          type: string
+          enum: [growing, stable, declining]
+        days_since_last_interaction:
+          type: integer
+        project_delivery_score:
+          type: number
+          description: 0-1 score of on-time deliveries
+        support_tickets_30d:
+          type: integer
+
+    ChurnPredictionRequest:
+      type: object
+      required: [client]
+      properties:
+        client:
+          $ref: '#/components/schemas/ClientFeatures'
+
+    ChurnPrediction:
+      type: object
+      properties:
+        client_id:
+          type: integer
+        churn_probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_level:
+          type: string
+          enum: [low, medium, high, critical]
+        contributing_factors:
+          type: array
+          items:
+            type: object
+            properties:
+              factor:
+                type: string
+              weight:
+                type: number
+
+    ChurnPredictionResponse:
+      type: object
+      properties:
+        prediction:
+          $ref: '#/components/schemas/ChurnPrediction'
+        model_version:
+          type: string
+
+    ProjectSuccessRequest:
+      type: object
+      required: [project]
+      properties:
+        project:
+          type: object
+          properties:
+            project_id:
+              type: integer
+            budget:
+              type: number
+            spent_to_date:
+              type: number
+            timeline_days:
+              type: integer
+            elapsed_days:
+              type: integer
+            team_size:
+              type: integer
+            tasks_completed:
+              type: integer
+            tasks_total:
+              type: integer
+            recent_conflicts:
+              type: integer
+
+    ProjectSuccessPrediction:
+      type: object
+      properties:
+        project_id:
+          type: integer
+        success_probability:
+          type: number
+        on_time_probability:
+          type: number
+        on_budget_probability:
+          type: number
+        risk_factors:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    RevenueForecast:
+      type: object
+      properties:
+        forecast:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+                format: date
+              predicted_revenue:
+                type: number
+              lower_bound:
+                type: number
+              upper_bound:
+                type: number
+        model_confidence:
+          type: number
+        trend:
+          type: string
+          enum: [growing, stable, declining]
+
+    AnomalyDetectionResult:
+      type: object
+      properties:
+        anomalies:
+          type: array
+          items:
+            type: object
+            properties:
+              record_id:
+                type: integer
+              field:
+                type: string
+              value:
+                type: number
+              expected_range:
+                type: object
+                properties:
+                  min:
+                    type: number
+                  max:
+                    type: number
+              anomaly_score:
+                type: number
+              description:
+                type: string
+        total_records_analyzed:
+          type: integer
+        anomaly_count:
+          type: integer
+
+    TrendAnalysis:
+      type: object
+      properties:
+        metric_name:
+          type: string
+        trend_direction:
+          type: string
+          enum: [increasing, decreasing, stable, volatile]
+        slope:
+          type: number
+        r_squared:
+          type: number
+        seasonality_detected:
+          type: boolean
+        forecast_next_period:
+          type: number
+        confidence:
+          type: number
