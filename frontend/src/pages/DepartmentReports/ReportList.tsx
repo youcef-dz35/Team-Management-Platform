@@ -5,8 +5,9 @@ import { format } from 'date-fns';
 
 const DeptReportList = () => {
     const [page, setPage] = useState(1);
+    const [status, setStatus] = useState('');
     const { useGetReports } = useDepartmentReports();
-    const { data, isLoading, isError } = useGetReports(page);
+    const { data, isLoading, isError } = useGetReports(page, status);
 
     if (isLoading) return <div className="p-4">Loading reports...</div>;
     if (isError) return <div className="p-4 text-red-600">Error loading reports.</div>;
@@ -16,6 +17,7 @@ const DeptReportList = () => {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'submitted': return 'bg-green-100 text-green-800';
+            case 'amended': return 'bg-yellow-100 text-yellow-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
@@ -24,12 +26,26 @@ const DeptReportList = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-900">Department Allocations</h1>
-                <Link
-                    to="/department-reports/new"
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium"
-                >
-                    New Weekly Allocation
-                </Link>
+                <div className="flex items-center gap-4">
+                    <div>
+                        <select
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        >
+                            <option value="">All Statuses</option>
+                            <option value="draft">Draft</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="amended">Amended</option>
+                        </select>
+                    </div>
+                    <Link
+                        to="/department-reports/new"
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium"
+                    >
+                        New Weekly Allocation
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white shadow overflow-hidden rounded-lg">

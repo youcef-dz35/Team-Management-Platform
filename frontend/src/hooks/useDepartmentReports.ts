@@ -6,9 +6,9 @@ export function useDepartmentReports() {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
-    const useGetReports = (page = 1) => useQuery({
-        queryKey: ['dept-reports', page],
-        queryFn: () => deptReportsApi.getReports(page),
+    const useGetReports = (page = 1, status = '') => useQuery({
+        queryKey: ['dept-reports', page, status],
+        queryFn: () => deptReportsApi.getReports(page, status),
     });
 
     const useGetReport = (id: string) => useQuery({

@@ -28,12 +28,14 @@ class AmendProjectReportRequest extends FormRequest
     {
         // Amendment essentially replaces the entries data, but requires a reason
         return [
-            'reason' => ['required', 'string', 'min:5'],
-            'entries' => ['required', 'array', 'min:1'],
-            'entries.*.user_id' => ['required', 'exists:users,id'],
-            'entries.*.hours_worked' => ['required', 'numeric', 'min:0', 'max:168'],
+            'amendment_reason' => ['required', 'string', 'min:5'],
+            'entries' => ['sometimes', 'array'],
+            'entries.*.employee_id' => ['required_with:entries', 'exists:users,id'],
+            'entries.*.hours_worked' => ['required_with:entries', 'numeric', 'min:0', 'max:168'],
             'entries.*.notes' => ['nullable', 'string'],
             'comments' => ['nullable', 'string'], // Allow updating header comments too
+            'reporting_period_start' => ['sometimes', 'date', 'date_format:Y-m-d'],
+            'reporting_period_end' => ['sometimes', 'date', 'date_format:Y-m-d'],
         ];
     }
 }

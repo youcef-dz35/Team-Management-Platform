@@ -33,10 +33,16 @@ export interface StoreDeptReportPayload {
     status?: 'draft' | 'submitted';
 }
 
+export interface AmendDeptReportPayload {
+    reason: string;
+    entries: { user_id: number; project_id: number; hours_allocated: number; notes?: string }[];
+    comments?: string;
+}
+
 export const deptReportsApi = {
     // List reports
-    getReports: async (page = 1) => {
-        const response = await api.get(`/department-reports?page=${page}`);
+    getReports: async (page = 1, status = '') => {
+        const response = await api.get(`/department-reports?page=${page}&status=${status}`);
         return response.data;
     },
 
@@ -61,5 +67,17 @@ export const deptReportsApi = {
     // Delete draft
     deleteReport: async (id: string | number) => {
         await api.delete(`/department-reports/${id}`);
-    }
+    },
+
+    // Submit a report
+    submitReport: async (id: string | number) => {
+        const response = await api.post(`/department-reports/${id}/submit`);
+        return response.data;
+    },
+
+    // Amend a submitted report
+    amendReport: async (id: string | number, data: AmendDeptReportPayload) => {
+        const response = await api.post(`/department-reports/${id}/amend`, data);
+        return response.data;
+    },
 };

@@ -2,6 +2,8 @@
 
 namespace App\Models\Scopes;
 
+use App\Models\Project;
+use App\Models\ProjectReport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
@@ -11,28 +13,38 @@ class SddProjectScope implements Scope
 {
     /**
      * Apply the scope to a given Eloquent query builder.
+     *
+     * This scope restricts SDDs to only see their own projects/project reports.
+     * Executive roles can see all.
      */
     public function apply(Builder $builder, Model $model): void
     {
-        // Only apply if user is logged in
-        if (!Auth::check()) {
+        $user = Auth::user();
+
+        // No user? Return empty results for safety
+        if (!$user) {
+            $builder->whereRaw('1 = 0');
             return;
         }
 
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
-
-        // If user is SDD, restricting to assigned projects
-        if ($user->hasRole('sdd')) {
-            // Get IDs of projects where this user is the SDD (sdd_id)
-            // Or if we had a many-to-many assignment table, checks would differ.
-            // Based on earlier Project model, we have `sdd_id` column on projects table?
-            // Let me check Project migration to be sure.
-
-            // Assuming sdd_id on projects table (One SDD per project)
-            $builder->where('sdd_id', $user->id);
+        // Executive roles can see all
+        if ($user->hasAnyRole(['ceo', 'cfo', 'gm', 'ops_manager', 'director'])) {
+            return;
         }
 
-        // CEO, CFO, GM, Ops Manager see everything (no filter)
+        // SDDs can only see their own data
+        if ($user->hasRole('sdd')) {
+            // Use correct column based on model type
+            if ($model instanceof Project) {
+                $builder->where('sdd_id', $user->id);
+            } elseif ($model instanceof ProjectReport) {
+                $builder->where('submitted_by', $user->id);
+            }
+            return;
+        }
+
+        // All other roles should not see project data
+        // (they should be blocked by middleware, but this is defense in depth)
+        $builder->whereRaw('1 = 0');
     }
 }

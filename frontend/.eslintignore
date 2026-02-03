@@ -1,0 +1,13 @@
+# frontend/.eslintignore
+# Files and directories to ignore when running ESLint
+
+node_modules/
+dist/
+build/
+coverage/
+# vite.config.ts # Only ignore if causing issues with linting.
+# postcss.config.js
+# tailwind.config.js
+*.cjs
+*.mjs
+output.css # Generated Tailwind CSS file

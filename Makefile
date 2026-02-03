@@ -206,6 +206,44 @@ db-backup: ## Backup the database to ./backups/
 	@echo "$(GREEN)[Done]$(NC) Backup saved to ./backups/"
 
 #======================================
+# LOCAL TESTING (T113-T118)
+#======================================
+test-all: ## Run all local validation tests (T113-T118)
+	@echo "$(BLUE)[Test]$(NC) Running complete local validation suite..."
+	@bash scripts/test-local.sh
+
+test-migrate: ## Test migrations and seeders (T113)
+	@echo "$(BLUE)[T113]$(NC) Testing migrations and seeders..."
+	docker compose exec backend php artisan migrate:fresh --seed --force
+	@echo "$(GREEN)[Done]$(NC) Migration test complete."
+
+test-unit: ## Run all backend unit tests (T114)
+	@echo "$(BLUE)[T114]$(NC) Running backend tests..."
+	docker compose exec backend php artisan test --parallel
+	@echo "$(GREEN)[Done]$(NC) Backend tests complete."
+
+test-sdd: ## Test SDD flow via API (T115)
+	@echo "$(BLUE)[T115]$(NC) Testing SDD flow..."
+	@bash scripts/test-local.sh --sdd
+
+test-deptmgr: ## Test DeptManager flow via API (T116)
+	@echo "$(BLUE)[T116]$(NC) Testing DeptManager flow..."
+	@bash scripts/test-local.sh --deptmgr
+
+test-gm: ## Test GM conflict flow via API (T117)
+	@echo "$(BLUE)[T117]$(NC) Testing GM conflict flow..."
+	@bash scripts/test-local.sh --gm
+
+test-isolation: ## Test Source A/B isolation (T118)
+	@echo "$(BLUE)[T118]$(NC) Testing Source A/B isolation..."
+	@bash scripts/test-local.sh --isolation
+
+test-frontend: ## Run frontend tests
+	@echo "$(BLUE)[Test]$(NC) Running frontend tests..."
+	docker compose exec frontend npm test -- --run
+	@echo "$(GREEN)[Done]$(NC) Frontend tests complete."
+
+#======================================
 # STATUS & INFO
 #======================================
 status: ## Show status of all containers

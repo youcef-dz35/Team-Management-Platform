@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\SddProjectScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,15 +13,30 @@ class ProjectReport extends Model
     use HasFactory;
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new SddProjectScope);
+    }
+
+    /**
+     * Report status constants.
+     */
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'submitted';
+    public const STATUS_AMENDED = 'amended';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
      */
     protected $fillable = [
         'project_id',
-        'user_id',
-        'period_start',
-        'period_end',
+        'submitted_by',
+        'reporting_period_start',
+        'reporting_period_end',
         'status',
         'comments',
     ];
@@ -31,17 +47,11 @@ class ProjectReport extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'period_start' => 'date',
-        'period_end' => 'date',
+        'reporting_period_start' => 'date',
+        'reporting_period_end' => 'date',
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
-
-    /**
-     * Indicates if the model should be timestamped.
-     *
-     * @var bool
-     */
-    public $timestamps = false; // Only created_at handled manually or via migration defaults
 
     /**
      * Get the project that owns the report.
@@ -56,7 +66,15 @@ class ProjectReport extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    /**
+     * Alias for user relationship (the submitter/SDD).
+     */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     /**
@@ -73,5 +91,53 @@ class ProjectReport extends Model
     public function amendments(): HasMany
     {
         return $this->hasMany(ProjectReportAmendment::class);
+    }
+
+    /**
+     * Check if the report is a draft.
+     */
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    /**
+     * Check if the report has been submitted.
+     */
+    public function isSubmitted(): bool
+    {
+        return $this->status === self::STATUS_SUBMITTED || $this->status === self::STATUS_AMENDED;
+    }
+
+    /**
+     * Check if the report can be edited (only drafts).
+     */
+    public function canBeEdited(): bool
+    {
+        return $this->isDraft();
+    }
+
+    /**
+     * Check if the report can be deleted (only drafts).
+     */
+    public function canBeDeleted(): bool
+    {
+        return $this->isDraft();
+    }
+
+    /**
+     * Calculate total hours reported in this report.
+     */
+    public function getTotalHoursAttribute(): float
+    {
+        return $this->entries()->sum('hours_worked');
+    }
+
+    /**
+     * Get the total number of entries in this report.
+     */
+    public function getEntryCountAttribute(): int
+    {
+        return $this->entries()->count();
     }
 }

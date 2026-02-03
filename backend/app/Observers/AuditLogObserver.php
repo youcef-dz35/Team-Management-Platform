@@ -70,7 +70,7 @@ class AuditLogObserver
             'action' => $action,
             'auditable_type' => get_class($model),
             'auditable_id' => $model->id,
-            'user_role' => $user?->roles->first()?->name,
+            'user_role' => $user?->roles->first()?->name ?? 'system',
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'ip_address' => request()->ip(),

@@ -12,10 +12,10 @@ export interface ProjectReport {
     id: number;
     project_id: number;
     project?: { name: string };
-    user_id: number;
+    submitted_by: number;
     user?: { name: string };
-    period_start: string;
-    period_end: string;
+    reporting_period_start: string;
+    reporting_period_end: string;
     status: 'draft' | 'submitted' | 'amended';
     comments?: string;
     entries: ProjectReportEntry[];
@@ -25,8 +25,8 @@ export interface ProjectReport {
 
 export interface StoreReportPayload {
     project_id: number;
-    period_start: string;
-    period_end: string;
+    reporting_period_start: string;
+    reporting_period_end: string;
     entries: { user_id: number; hours_worked: number; notes?: string }[];
     comments?: string;
     status?: 'draft' | 'submitted';
@@ -46,8 +46,8 @@ export interface AmendReportPayload {
 
 export const reportsApi = {
     // List all reports (scoped by backend policy)
-    getReports: async (page = 1) => {
-        const response = await api.get(`/project-reports?page=${page}`);
+    getReports: async (page = 1, status = '') => {
+        const response = await api.get(`/project-reports?page=${page}&status=${status}`);
         return response.data;
     },
 

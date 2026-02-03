@@ -12,10 +12,18 @@ class DepartmentReportEntry extends Model
 
     protected $fillable = [
         'department_report_id',
-        'user_id',
-        'project_id',
-        'hours_allocated',
-        'notes',
+        'employee_id',
+        'hours_worked',
+        'tasks_completed',
+        'status',
+        'work_description',
+    ];
+
+    protected $casts = [
+        'hours_worked' => 'decimal:2',
+        'tasks_completed' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function report(): BelongsTo
@@ -23,13 +31,19 @@ class DepartmentReportEntry extends Model
         return $this->belongsTo(DepartmentReport::class, 'department_report_id');
     }
 
-    public function user(): BelongsTo
+    /**
+     * Get the employee the entry is for.
+     */
+    public function employee(): BelongsTo
     {
-        return $this->belongsTo(User::class); // The employee
+        return $this->belongsTo(User::class, 'employee_id');
     }
 
-    public function project(): BelongsTo
+    /**
+     * Alias for employee relationship.
+     */
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(User::class, 'employee_id');
     }
 }

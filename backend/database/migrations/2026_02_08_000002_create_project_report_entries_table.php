@@ -13,14 +13,14 @@ return new class extends Migration {
         Schema::create('project_report_entries', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_report_id')->constrained('project_reports')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained('users'); // The Employee/Worker
+            $table->foreignId('employee_id')->constrained('users'); // The Employee/Worker
             $table->decimal('hours_worked', 5, 2); // Max 168.00
             $table->text('notes')->nullable();
 
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
 
             $table->index('project_report_id');
-            $table->index('user_id');
+            $table->index('employee_id');
         });
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\DeptManagerDepartmentScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,32 +14,36 @@ class DepartmentReport extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'department_id',
-        'user_id',
-        'period_start',
-        'period_end',
-        'status',
-        'comments',
-    ];
-
-    protected $casts = [
-        'period_start' => 'date',
-        'period_end' => 'date',
-    ];
-
     /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
     {
-        // Scope to valid Department Managers: 
-        // If user is a Dept Manager, they should ideally only see their OWN department reports.
-        // But RBAC/Policy usually handles this better than a Global Scope for ADMINs who need to see everything.
-        // Let's implement a scope 'forUser' manually or just use Policies.
-        // However, standard Project Report used SddProjectScope. 
-        // Let's add a local scope for easy filtering.
+        static::addGlobalScope(new DeptManagerDepartmentScope);
     }
+
+    /**
+     * Report status constants.
+     */
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'submitted';
+    public const STATUS_AMENDED = 'amended';
+
+    protected $fillable = [
+        'department_id',
+        'submitted_by',
+        'reporting_period_start',
+        'reporting_period_end',
+        'status',
+        'comments',
+    ];
+
+    protected $casts = [
+        'reporting_period_start' => 'date',
+        'reporting_period_end' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
 
     public function department(): BelongsTo
     {
@@ -47,11 +52,89 @@ class DepartmentReport extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class); // The manager
+        return $this->belongsTo(User::class, 'submitted_by'); // The manager
+    }
+
+    /**
+     * Alias for user relationship (the submitter/Department Manager).
+     */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     public function entries(): HasMany
     {
         return $this->hasMany(DepartmentReportEntry::class);
+    }
+
+    /**
+     * Get the amendments for the report.
+     */
+    public function amendments(): HasMany
+    {
+        return $this->hasMany(DepartmentReportAmendment::class);
+    }
+
+    /**
+     * Check if the report is a draft.
+     */
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    /**
+     * Check if the report has been submitted.
+     */
+    public function isSubmitted(): bool
+    {
+        return $this->status === self::STATUS_SUBMITTED || $this->status === self::STATUS_AMENDED;
+    }
+
+    /**
+     * Check if the report can be edited (only drafts).
+     */
+    public function canBeEdited(): bool
+    {
+        return $this->isDraft();
+    }
+
+    /**
+     * Check if the report can be deleted (only drafts).
+     */
+    public function canBeDeleted(): bool
+    {
+        return $this->isDraft();
+    }
+
+    /**
+     * Calculate total hours reported in this report.
+     */
+    public function getTotalHoursAttribute(): float
+    {
+        return $this->entries()->sum('hours_allocated');
+    }
+
+    /**
+     * Get the total number of entries in this report.
+     */
+    public function getEntryCountAttribute(): int
+    {
+        return $this->entries()->count();
+    }
+
+    /**
+     * Scope a query to only include reports for the current user's department.
+     */
+    public function scopeForCurrentUser(Builder $query): Builder
+    {
+        $user = Auth::user();
+
+        if ($user && $user->hasRole('dept_manager')) {
+            return $query->where('department_id', $user->department_id);
+        }
+
+        return $query;
     }
 }

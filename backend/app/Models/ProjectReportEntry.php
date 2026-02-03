@@ -17,7 +17,7 @@ class ProjectReportEntry extends Model
      */
     protected $fillable = [
         'project_report_id',
-        'user_id',
+        'employee_id',
         'hours_worked',
         'notes',
     ];
@@ -30,14 +30,8 @@ class ProjectReportEntry extends Model
     protected $casts = [
         'hours_worked' => 'decimal:2',
         'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
-
-    /**
-     * Indicates if the model should be timestamped.
-     *
-     * @var bool
-     */
-    public $timestamps = false;
 
     /**
      * Get the report that owns the entry.
@@ -48,10 +42,18 @@ class ProjectReportEntry extends Model
     }
 
     /**
-     * Get the user (employee) the entry is for.
+     * Get the employee the entry is for.
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'employee_id');
+    }
+
+    /**
+     * Alias for employee relationship.
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'employee_id');
     }
 }

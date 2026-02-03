@@ -14,12 +14,14 @@ class DatabaseSeeder extends Seeder
         $this->command->info('🚀 Starting database seeding...');
         $this->command->newLine();
 
-        // Order matters: roles → departments → users → projects
+        // Order matters: roles → departments → users → projects → reports → conflicts
         $this->call([
             RoleSeeder::class,
             DepartmentSeeder::class,
             UserSeeder::class,
             ProjectSeeder::class,
+            ReportSeeder::class,
+            ConflictAlertSeeder::class,
         ]);
 
         $this->command->newLine();

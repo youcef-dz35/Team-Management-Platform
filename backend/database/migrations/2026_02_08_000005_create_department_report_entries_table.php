@@ -12,15 +12,17 @@ return new class extends Migration {
     {
         Schema::create('department_report_entries', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('department_report_id')->constrained()->cascadeOnDelete();
-
-            $table->foreignId('user_id')->constrained(); // The employee being allocated
-            $table->foreignId('project_id')->constrained(); // The project they are allocated to
-
-            $table->decimal('hours_allocated', 8, 2);
-            $table->string('notes')->nullable();
+            $table->foreignId('department_report_id')->constrained('department_reports')->onDelete('cascade');
+            $table->foreignId('employee_id')->constrained('users'); // Employee being reported on
+            $table->decimal('hours_worked', 5, 2)->check('hours_worked >= 0'); // Max 168.00
+            $table->integer('tasks_completed')->default(0);
+            $table->string('status')->nullable(); // productive, underperforming, on_leave
+            $table->text('work_description')->nullable();
 
             $table->timestamps();
+
+            $table->unique(['department_report_id', 'employee_id']);
+            $table->index('employee_id');
         });
     }
 

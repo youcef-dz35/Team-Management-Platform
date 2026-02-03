@@ -28,7 +28,7 @@ class ProjectReportController extends Controller
         // Scope filter for SDD is handled implicitly by Policy 'view' check not being applied per row here,
         // but we should actively filter the query for SDD users as list.
         if ($user->hasRole('sdd')) {
-            $query->where('user_id', $user->id);
+            $query->where('submitted_by', $user->id);
         }
 
         return response()->json($query->paginate(20));
@@ -41,24 +41,32 @@ class ProjectReportController extends Controller
     {
         $this->authorize('create', ProjectReport::class);
 
-        return DB::transaction(function () use ($request) {
-            // Create Header
-            $report = ProjectReport::create([
-                'project_id' => $request->project_id,
-                'user_id' => Auth::id(),
-                'period_start' => $request->period_start,
-                'period_end' => $request->period_end,
-                'status' => $request->status ?? 'draft',
-                'comments' => $request->comments,
-            ]);
+        try {
+            $report = DB::transaction(function () use ($request) {
+                // Create Header
+                $report = ProjectReport::create([
+                    'project_id' => $request->project_id,
+                    'submitted_by' => Auth::id(),
+                    'reporting_period_start' => $request->reporting_period_start,
+                    'reporting_period_end' => $request->reporting_period_end,
+                    'status' => $request->status ?? 'draft',
+                    'comments' => $request->comments,
+                ]);
 
-            // Create Entries
-            foreach ($request->entries as $entryData) {
-                $report->entries()->create($entryData);
-            }
+                // Create Entries if provided
+                if ($request->has('entries')) {
+                    foreach ($request->entries as $entryData) {
+                        $report->entries()->create($entryData);
+                    }
+                }
 
-            return response()->json($report->load('entries'), 201);
-        });
+                return $report;
+            });
+
+            return response()->json(['data' => $report->load('entries')], 201);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error creating report', 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -68,7 +76,7 @@ class ProjectReportController extends Controller
     {
         $this->authorize('view', $projectReport);
 
-        return response()->json($projectReport->load(['project', 'entries.user', 'amendments.user']));
+        return response()->json(['data' => $projectReport->load(['project', 'entries.employee', 'amendments.user'])]);
     }
 
     /**
@@ -78,20 +86,32 @@ class ProjectReportController extends Controller
     {
         $this->authorize('update', $projectReport);
 
-        return DB::transaction(function () use ($request, $projectReport) {
-            // Update Header
-            $projectReport->update($request->only(['status', 'comments']));
+        try {
+            $report = DB::transaction(function () use ($request, $projectReport) {
+                // Update Header (including period dates for draft reports)
+                $updateFields = $request->only([
+                    'status',
+                    'comments',
+                    'reporting_period_start',
+                    'reporting_period_end'
+                ]);
+                $projectReport->update(array_filter($updateFields, fn($v) => $v !== null));
 
-            if ($request->has('entries')) {
-                // Full replace policy for draft entries
-                $projectReport->entries()->delete();
-                foreach ($request->entries as $entryData) {
-                    $projectReport->entries()->create($entryData);
+                if ($request->has('entries')) {
+                    // Full replace policy for draft entries
+                    $projectReport->entries()->delete();
+                    foreach ($request->entries as $entryData) {
+                        $projectReport->entries()->create($entryData);
+                    }
                 }
-            }
 
-            return response()->json($projectReport->load('entries'));
-        });
+                return $projectReport;
+            });
+
+            return response()->json(['data' => $report->fresh()->load('entries')]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error updating report', 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -99,11 +119,16 @@ class ProjectReportController extends Controller
      */
     public function submit(Request $request, ProjectReport $projectReport)
     {
+        // Check if already submitted
+        if ($projectReport->status !== 'draft') {
+            return response()->json(['message' => 'Report has already been submitted.'], 400);
+        }
+
         $this->authorize('submit', $projectReport);
 
         $projectReport->update(['status' => 'submitted']);
 
-        return response()->json(['message' => 'Report submitted successfully', 'report' => $projectReport]);
+        return response()->json(['data' => $projectReport->fresh(), 'status' => 'submitted']);
     }
 
     /**
@@ -117,15 +142,25 @@ class ProjectReportController extends Controller
             // 1. Snapshot Old Data
             $oldData = $projectReport->load('entries')->toArray();
 
-            // 2. Update Header (Comments/Status -> Remains submitted, but implicitly updated)
+            // 2. Update fields if provided
+            $updateData = ['status' => 'amended'];
             if ($request->has('comments')) {
-                $projectReport->update(['comments' => $request->comments]);
+                $updateData['comments'] = $request->comments;
             }
+            if ($request->has('reporting_period_start')) {
+                $updateData['reporting_period_start'] = $request->reporting_period_start;
+            }
+            if ($request->has('reporting_period_end')) {
+                $updateData['reporting_period_end'] = $request->reporting_period_end;
+            }
+            $projectReport->update($updateData);
 
-            // 3. Update Entries (Full Replace)
-            $projectReport->entries()->delete();
-            foreach ($request->entries as $entryData) {
-                $projectReport->entries()->create($entryData);
+            // 3. Update Entries (Full Replace) if entries are provided
+            if ($request->has('entries')) {
+                $projectReport->entries()->delete();
+                foreach ($request->entries as $entryData) {
+                    $projectReport->entries()->create($entryData);
+                }
             }
 
             // 4. Snapshot New Data
@@ -134,24 +169,22 @@ class ProjectReportController extends Controller
             // 5. Create Amendment Log
             $projectReport->amendments()->create([
                 'user_id' => Auth::id(),
-                'reason' => $request->reason,
+                'reason' => $request->amendment_reason,
                 'old_data' => $oldData,
                 'new_data' => $newData,
             ]);
 
-            return response()->json($projectReport->load(['entries', 'amendments']), 200);
+            return response()->json(['data' => $projectReport->load(['entries', 'amendments'])], 200);
         });
     }
 
     /**
      * Remove the specified resource from storage.
+     * NOTE: Per Constitution Principle II, reports cannot be deleted.
      */
     public function destroy(ProjectReport $projectReport)
     {
-        $this->authorize('delete', $projectReport);
-
-        $projectReport->delete();
-
-        return response()->json(null, 204);
+        // Reports cannot be deleted - return 405 Method Not Allowed
+        return response()->json(['message' => 'Reports cannot be deleted. Use amend to correct errors.'], 405);
     }
 }

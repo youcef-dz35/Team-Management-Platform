@@ -34,15 +34,17 @@ class StoreDepartmentReportRequest extends FormRequest
             'department_id' => [
                 'required',
                 'exists:departments,id',
-                Rule::in([$userDeptId]) // The dept ID must match the user's dept
+                Rule::unique('department_reports')->where(function ($query) {
+                    return $query->where('reporting_period_start', $this->reporting_period_start)
+                                 ->where('reporting_period_end', $this->reporting_period_end);
+                }),
             ],
-            'period_start' => ['required', 'date', 'date_format:Y-m-d'],
-            'period_end' => ['required', 'date', 'date_format:Y-m-d', 'after:period_start'],
+            'reporting_period_start' => ['required', 'date', 'date_format:Y-m-d'],
+            'reporting_period_end' => ['required', 'date', 'date_format:Y-m-d', 'after:reporting_period_start'],
             'status' => ['sometimes', Rule::in(['draft', 'submitted'])],
             'comments' => ['nullable', 'string'],
-            'entries' => ['required', 'array', 'min:1'],
-            'entries.*.project_id' => ['required', 'exists:projects,id'],
-            'entries.*.user_id' => [
+            'entries' => ['sometimes', 'array'],
+            'entries.*.employee_id' => [
                 'required',
                 'exists:users,id',
                 // Custom validation: The allocated user MUST belong to the reporting department
@@ -53,7 +55,7 @@ class StoreDepartmentReportRequest extends FormRequest
                     }
                 }
             ],
-            'entries.*.hours_allocated' => ['required', 'numeric', 'min:0', 'max:168'],
+            'entries.*.hours_worked' => ['required', 'numeric', 'min:0', 'max:168'],
             'entries.*.notes' => ['nullable', 'string'],
         ];
     }

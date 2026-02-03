@@ -1,24 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
-import { useAuthStore, User } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 
 export function useAuth() {
     const queryClient = useQueryClient();
-    const setUser = useAuthStore((state) => state.setUser);
+    const setAuth = useAuthStore((state) => state.setAuth);
     const logoutState = useAuthStore((state) => state.logout);
     const navigate = useNavigate();
 
     // Login Mutation
     const loginMutation = useMutation({
-        mutationFn: async (credentials: any) => {
-            // Sanctum CSRF protection
-            await api.get('/sanctum/csrf-cookie', { baseURL: 'http://localhost:9000' });
+        mutationFn: async (credentials: { email: string; password: string }) => {
             const response = await api.post('/auth/login', credentials);
             return response.data;
         },
         onSuccess: (data) => {
-            setUser(data.user);
+            // Store both user and token
+            setAuth(data.user, data.token);
             navigate('/');
         },
     });
@@ -26,9 +25,19 @@ export function useAuth() {
     // Logout Mutation
     const logoutMutation = useMutation({
         mutationFn: async () => {
-            await api.post('/auth/logout');
+            try {
+                await api.post('/auth/logout');
+            } catch {
+                // Ignore errors - we want to logout locally even if server fails
+            }
         },
         onSuccess: () => {
+            logoutState();
+            queryClient.clear();
+            navigate('/login');
+        },
+        onError: () => {
+            // Still logout locally even if the API call failed
             logoutState();
             queryClient.clear();
             navigate('/login');
@@ -36,6 +45,7 @@ export function useAuth() {
     });
 
     // Fetch User Query (Check Auth Status)
+    const token = useAuthStore((state) => state.token);
     const userQuery = useQuery({
         queryKey: ['authUser'],
         queryFn: async () => {
@@ -43,7 +53,7 @@ export function useAuth() {
             return response.data.user;
         },
         retry: false,
-        enabled: !!localStorage.getItem('auth-storage'), // Optimistic check
+        enabled: !!token, // Only fetch if we have a token
     });
 
     return {

@@ -29,12 +29,12 @@ class UpdateProjectReportRequest extends FormRequest
     {
         return [
             // Project and Period usually immutable after creation, but allowing update if draft
-            'period_start' => ['sometimes', 'date', 'date_format:Y-m-d'],
-            'period_end' => ['sometimes', 'date', 'date_format:Y-m-d', 'after:period_start'],
+            'reporting_period_start' => ['sometimes', 'date', 'date_format:Y-m-d'],
+            'reporting_period_end' => ['sometimes', 'date', 'date_format:Y-m-d', 'after:reporting_period_start'],
             'status' => ['sometimes', Rule::in(['draft', 'submitted'])],
             'comments' => ['nullable', 'string'],
             'entries' => ['sometimes', 'array'],
-            'entries.*.user_id' => ['required_with:entries', 'exists:users,id'],
+            'entries.*.employee_id' => ['required_with:entries', 'exists:users,id'],
             'entries.*.hours_worked' => ['required_with:entries', 'numeric', 'min:0', 'max:168'],
             'entries.*.notes' => ['nullable', 'string'],
         ];

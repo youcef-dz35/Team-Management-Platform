@@ -7,9 +7,9 @@ export function useReports() {
     const navigate = useNavigate();
 
     // Query: Get All Reports
-    const useGetReports = (page = 1) => useQuery({
-        queryKey: ['reports', page],
-        queryFn: () => reportsApi.getReports(page),
+    const useGetReports = (page = 1, status = '') => useQuery({
+        queryKey: ['reports', page, status],
+        queryFn: () => reportsApi.getReports(page, status),
     });
 
     // Query: Get Single Report

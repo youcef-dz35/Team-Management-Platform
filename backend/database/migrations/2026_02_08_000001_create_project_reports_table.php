@@ -13,22 +13,21 @@ return new class extends Migration {
         Schema::create('project_reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('projects');
-            $table->foreignId('user_id')->constrained('users'); // The SDD
-            $table->date('period_start'); // Monday
-            $table->date('period_end');   // Sunday
+            $table->foreignId('submitted_by')->constrained('users'); // The SDD
+            $table->date('reporting_period_start'); // Monday
+            $table->date('reporting_period_end');   // Sunday
             $table->string('status')->default('draft'); // draft, submitted, amended
             $table->text('comments')->nullable();
 
             // Audit fields
-            $table->timestamp('created_at')->useCurrent();
-            // No updated_at - use amendments table for changes
+            $table->timestamps(); // created_at, updated_at
             // No deleted_at - reports are immutable
 
             // Unique constraint to prevent duplicate reports for same period/project
-            $table->unique(['project_id', 'period_start']);
+            $table->unique(['project_id', 'reporting_period_start']);
 
-            $table->index(['project_id', 'period_start']);
-            $table->index('user_id');
+            $table->index(['project_id', 'reporting_period_start']);
+            $table->index('submitted_by');
         });
     }
 

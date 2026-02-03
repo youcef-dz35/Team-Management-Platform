@@ -5,8 +5,9 @@ import { format } from 'date-fns';
 
 const ReportList = () => {
     const [page, setPage] = useState(1);
+    const [status, setStatus] = useState('');
     const { useGetReports } = useReports();
-    const { data, isLoading, isError } = useGetReports(page);
+    const { data, isLoading, isError } = useGetReports(page, status);
 
     if (isLoading) return <div className="p-4">Loading reports...</div>;
     if (isError) return <div className="p-4 text-red-600">Error loading reports.</div>;
@@ -26,12 +27,26 @@ const ReportList = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-900">Project Reports</h1>
-                <Link
-                    to="/reports/new"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
-                >
-                    New Weekly Report
-                </Link>
+                <div className="flex items-center gap-4">
+                    <div>
+                        <select
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                            <option value="">All Statuses</option>
+                            <option value="draft">Draft</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="amended">Amended</option>
+                        </select>
+                    </div>
+                    <Link
+                        to="/reports/new"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
+                    >
+                        New Weekly Report
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white shadow overflow-hidden rounded-lg">
@@ -59,7 +74,7 @@ const ReportList = () => {
                                         {report.project?.name || 'Unknown Project'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {format(new Date(report.period_start), 'MMM d')} - {format(new Date(report.period_end), 'MMM d, yyyy')}
+                                        {format(new Date(report.reporting_period_start), 'MMM d')} - {format(new Date(report.reporting_period_end), 'MMM d, yyyy')}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(report.status)}`}>

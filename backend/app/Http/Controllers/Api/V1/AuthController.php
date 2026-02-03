@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
-use App\Models\AuditLog;
+use App\Jobs\LogAuditEntry;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,10 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where('email', $request->email)->first();
+        // Eager load relationships for better performance
+        $user = User::with(['roles', 'department'])
+            ->where('email', $request->email)
+            ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -34,18 +37,15 @@ class AuthController extends Controller
         // Create token for API authentication
         $token = $user->createToken('auth-token')->plainTextToken;
 
-        // Load relationships
-        $user->load(['roles', 'department']);
-
-        // Log successful login
-        AuditLog::log([
+        // Queue audit log asynchronously (non-blocking)
+        LogAuditEntry::dispatch([
             'user_id' => $user->id,
             'action' => 'login',
             'auditable_type' => User::class,
             'auditable_id' => $user->id,
             'user_role' => $user->roles->first()?->name ?? 'unknown',
             'old_values' => null,
-            'new_values' => ['login_at' => now()],
+            'new_values' => ['login_at' => now()->toDateTimeString()],
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
@@ -57,7 +57,10 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'employee_id' => $user->employee_id,
-                'department' => $user->department?->name,
+                'department' => [
+                    'id' => $user->department?->id,
+                    'name' => $user->department?->name,
+                ],
                 'roles' => $user->roles->pluck('name'),
             ],
             'token' => $token,
@@ -73,16 +76,17 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         $user = $request->user();
+        $user->load('roles');
 
-        // Log logout
-        AuditLog::log([
+        // Queue logout audit log asynchronously
+        LogAuditEntry::dispatch([
             'user_id' => $user->id,
             'action' => 'logout',
             'auditable_type' => User::class,
             'auditable_id' => $user->id,
             'user_role' => $user->roles->first()?->name ?? 'unknown',
             'old_values' => null,
-            'new_values' => ['logout_at' => now()],
+            'new_values' => ['logout_at' => now()->toDateTimeString()],
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
@@ -118,7 +122,7 @@ class AuthController extends Controller
                 ],
                 'roles' => $user->roles->pluck('name'),
                 'permissions' => $user->getAllPermissions()->pluck('name'),
-                'is_god_mode' => $user->isGodMode(),
+                'is_god_mode' => $user->hasGodMode(),
             ],
         ]);
     }

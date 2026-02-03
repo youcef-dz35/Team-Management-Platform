@@ -27,7 +27,8 @@ class ProjectSeeder extends Seeder
         $workerMobile2 = User::where('email', 'worker.mobile2@example.com')->first();
 
         // Project 1: E-Commerce Platform (Backend SDD)
-        $project1 = Project::firstOrCreate(
+        // Use withoutGlobalScopes to bypass SddProjectScope during seeding
+        $project1 = Project::withoutGlobalScopes()->firstOrCreate(
             ['name' => 'E-Commerce Platform'],
             [
                 'description' => 'Building a scalable e-commerce platform with Laravel and React',
@@ -47,7 +48,7 @@ class ProjectSeeder extends Seeder
         ]);
 
         // Project 2: Mobile App Redesign (Frontend SDD)
-        $project2 = Project::firstOrCreate(
+        $project2 = Project::withoutGlobalScopes()->firstOrCreate(
             ['name' => 'Mobile App Redesign'],
             [
                 'description' => 'Complete redesign of the mobile application UI/UX',
@@ -67,7 +68,7 @@ class ProjectSeeder extends Seeder
         ]);
 
         // Project 3: API Integration (Mobile SDD)
-        $project3 = Project::firstOrCreate(
+        $project3 = Project::withoutGlobalScopes()->firstOrCreate(
             ['name' => 'API Integration'],
             [
                 'description' => 'Integrate third-party APIs for payment and analytics',

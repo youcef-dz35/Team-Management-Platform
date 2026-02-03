@@ -13,10 +13,10 @@ return new class extends Migration {
         Schema::create('department_reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('department_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained(); // The manager who created the report
+            $table->foreignId('submitted_by')->constrained('users'); // The manager who created the report
 
-            $table->date('period_start'); // Monday
-            $table->date('period_end');   // Sunday
+            $table->date('reporting_period_start'); // Monday
+            $table->date('reporting_period_end');   // Sunday
 
             $table->enum('status', ['draft', 'submitted', 'amended'])->default('draft');
             $table->text('comments')->nullable();
@@ -27,7 +27,7 @@ return new class extends Migration {
             $table->timestamps();
 
             // Ensure one report per department per week
-            $table->unique(['department_id', 'period_start']);
+            $table->unique(['department_id', 'reporting_period_start']);
         });
     }
 
