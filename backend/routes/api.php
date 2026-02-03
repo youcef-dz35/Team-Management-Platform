@@ -32,6 +32,14 @@ Route::prefix('v1')->group(function () {
         // User routes will go here
         // Project routes will go here
         // Department routes will go here
+
+        // Project Reports
+        Route::post('project-reports/{project_report}/submit', [App\Http\Controllers\Api\V1\ProjectReportController::class, 'submit']);
+        Route::post('project-reports/{project_report}/amend', [App\Http\Controllers\Api\V1\ProjectReportController::class, 'amend']);
+        Route::apiResource('project-reports', App\Http\Controllers\Api\V1\ProjectReportController::class);
+
+        // Department Reports
+        Route::apiResource('department-reports', App\Http\Controllers\Api\V1\DepartmentReportController::class);
     });
 });
 
